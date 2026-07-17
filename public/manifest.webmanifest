@@ -1,0 +1,14 @@
+{
+  "name": "Korean Church of Westchester Family Bible Reading",
+  "short_name": "Bible Reading",
+  "description": "2026–2027 Family Bible Reading",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "lang": "en",
+  "icons": [
+    { "src": "./church-logo.jpg", "sizes": "512x164", "type": "image/jpeg", "purpose": "any" }
+  ]
+}
