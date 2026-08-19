@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ArrowLeft, BookOpen, Check, CheckCircle2, ChevronRight, Circle, Heart, Home, RotateCcw, Sunrise } from 'lucide-react';
+import { ArrowLeft, BookOpen, CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, Circle, Heart, Home, RotateCcw, Sunrise } from 'lucide-react';
 import { allBooks, TOTAL_CHAPTERS } from './bibleData';
 import './styles.css';
 
 const STORAGE_KEY = 'kcw-bible-progress-en-v1';
+const DATES_KEY = 'kcw-bible-reading-dates-en-v1';
 const BASE_URL = import.meta.env.BASE_URL;
 const VALID_PROGRESS_KEYS = new Set(
   allBooks.flatMap((book) => Array.from({ length: book.chapters }, (_, index) => `${book.name}-${index + 1}`)),
@@ -17,6 +18,25 @@ function readSaved() {
   } catch {
     return new Set();
   }
+}
+
+function readSavedDates() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(DATES_KEY) || '{}');
+    return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+  } catch { return {}; }
+}
+
+function localDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatDate(dateKey) {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).format(new Date(year, month - 1, day));
 }
 
 function Header() {
@@ -79,14 +99,87 @@ function Vision() {
   </section>;
 }
 
+function ReadingCalendar({ completed, readingDates }) {
+  const todayKey = localDateKey();
+  const today = new Date();
+  const [monthDate, setMonthDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  const [selectedDate, setSelectedDate] = useState(todayKey);
+  const readingsByDate = useMemo(() => {
+    const grouped = {};
+    Object.entries(readingDates).forEach(([chapterKey, dateKey]) => {
+      if (!completed.has(chapterKey) || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return;
+      (grouped[dateKey] ||= []).push(chapterKey);
+    });
+    Object.values(grouped).forEach((items) => items.sort((a, b) => a.localeCompare(b, 'en')));
+    return grouped;
+  }, [completed, readingDates]);
+
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+  const firstWeekday = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells = [
+    ...Array.from({ length: firstWeekday }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, index) => index + 1),
+  ];
+  while (cells.length % 7) cells.push(null);
+  const selectedReadings = readingsByDate[selectedDate] || [];
+  const moveMonth = (amount) => {
+    const nextMonth = new Date(year, month + amount, 1);
+    setMonthDate(nextMonth);
+    setSelectedDate(localDateKey(nextMonth));
+  };
+  const returnToToday = () => {
+    setMonthDate(new Date(today.getFullYear(), today.getMonth(), 1));
+    setSelectedDate(todayKey);
+  };
+
+  return <section className="calendar-panel" aria-labelledby="calendar-title">
+    <div className="calendar-heading">
+      <div><CalendarDays /><div><p>Reading by Date</p><h2 id="calendar-title">Reading Calendar</h2></div></div>
+      <button type="button" onClick={returnToToday}>Today</button>
+    </div>
+    <div className="calendar-month-nav">
+      <button type="button" onClick={() => moveMonth(-1)} aria-label="Previous month"><ChevronLeft /></button>
+      <strong>{new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(monthDate)}</strong>
+      <button type="button" onClick={() => moveMonth(1)} aria-label="Next month"><ChevronRight /></button>
+    </div>
+    <div className="calendar-weekdays" aria-hidden="true">
+      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <span key={day}>{day}</span>)}
+    </div>
+    <div className="calendar-grid">
+      {cells.map((day, index) => {
+        if (!day) return <span className="calendar-empty" key={`empty-${index}`} />;
+        const dateKey = localDateKey(new Date(year, month, day));
+        const count = readingsByDate[dateKey]?.length || 0;
+        const className = ['calendar-day', dateKey === todayKey ? 'today' : '', dateKey === selectedDate ? 'selected' : '', count ? 'has-reading' : ''].filter(Boolean).join(' ');
+        const countLabel = `${count} ${count === 1 ? 'chapter' : 'chapters'} read`;
+        return <button type="button" key={dateKey} className={className} onClick={() => setSelectedDate(dateKey)} aria-label={`${formatDate(dateKey)}, ${countLabel}`}>
+          <span>{day}</span>{count > 0 && <b>{count} ch.</b>}
+        </button>;
+      })}
+    </div>
+    <div className="calendar-detail" aria-live="polite">
+      <div><span>{formatDate(selectedDate)}</span><strong>{selectedReadings.length} {selectedReadings.length === 1 ? 'chapter' : 'chapters'} read</strong></div>
+      {selectedReadings.length ? <ul>{selectedReadings.map((key) => {
+        const splitAt = key.lastIndexOf('-');
+        return <li key={key}><CheckCircle2 /> {key.slice(0, splitAt)} {key.slice(splitAt + 1)}</li>;
+      })}</ul> : <p>No Bible reading is recorded for this date.</p>}
+    </div>
+    <p className="calendar-note">Your existing progress remains unchanged. The calendar records chapters checked after this update.</p>
+  </section>;
+}
+
 function App() {
   const [completed, setCompleted] = useState(readSaved);
+  const [readingDates, setReadingDates] = useState(readSavedDates);
   const [selectedBook, setSelectedBook] = useState(allBooks[0]);
   const [testament, setTestament] = useState('old');
   const [tab, setTab] = useState('home');
   const [showBookDetail, setShowBookDetail] = useState(false);
 
   useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify([...completed])); }, [completed]);
+  useEffect(() => { localStorage.setItem(DATES_KEY, JSON.stringify(readingDates)); }, [readingDates]);
   useEffect(() => { if ('serviceWorker' in navigator) navigator.serviceWorker.register(`${BASE_URL}sw.js`); }, []);
 
   const doneByBook = useMemo(() => {
@@ -96,19 +189,35 @@ function App() {
   }, [completed]);
 
   const visibleBooks = testament === 'old' ? allBooks.slice(0, 39) : allBooks.slice(39);
-  const toggleChapter = (name, chapter) => setCompleted((current) => {
-    const next = new Set(current);
+  const toggleChapter = (name, chapter) => {
     const key = `${name}-${chapter}`;
-    if (next.has(key)) next.delete(key); else next.add(key);
-    return next;
-  });
-  const toggleBook = (book) => setCompleted((current) => {
-    const next = new Set(current);
+    const willComplete = !completed.has(key);
+    setCompleted((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+    setReadingDates((current) => {
+      const next = { ...current };
+      if (willComplete) next[key] = localDateKey(); else delete next[key];
+      return next;
+    });
+  };
+  const toggleBook = (book) => {
     const keys = Array.from({ length: book.chapters }, (_, index) => `${book.name}-${index + 1}`);
-    const isComplete = keys.every((key) => next.has(key));
+    const isComplete = keys.every((key) => completed.has(key));
+    const today = localDateKey();
+    setCompleted((current) => {
+    const next = new Set(current);
     keys.forEach((key) => { if (isComplete) next.delete(key); else next.add(key); });
     return next;
-  });
+    });
+    setReadingDates((current) => {
+      const next = { ...current };
+      keys.forEach((key) => { if (isComplete) delete next[key]; else if (!completed.has(key)) next[key] = today; });
+      return next;
+    });
+  };
   const openBook = (book) => {
     setSelectedBook(book);
     setTestament(book.testament);
@@ -123,6 +232,7 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
   const nextUnread = allBooks.find((book) => (doneByBook.get(book.name) || 0) < book.chapters) || allBooks[0];
+  const todayCount = Object.entries(readingDates).filter(([key, date]) => completed.has(key) && date === localDateKey()).length;
 
   return <div className="app-shell">
     <Header />
@@ -131,7 +241,7 @@ function App() {
         <section className="welcome"><Sunrise /><div><p>May God</p><h1>Bless you and be with you today!</h1><span>Family Bible Reading 2026–2027</span></div></section>
         <section className="dashboard">
           <ProgressRing completed={completed.size} />
-          <div className="today-area"><button type="button" onClick={() => openBook(nextUnread)}><BookOpen /> Today’s Reading</button><p>Continue your journey<br />through {nextUnread.name}.</p></div>
+          <div className="today-area"><div className="today-count"><small>Read Today</small><strong>{todayCount}<em> chapters</em></strong></div><button type="button" onClick={() => openBook(nextUnread)}><BookOpen /> Continue Reading</button><button type="button" className="calendar-shortcut" onClick={() => { setTab('calendar'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}><CalendarDays /> View Reading Calendar</button><p>Continue your journey through {nextUnread.name}.</p></div>
         </section>
         <div className="testament-links">
           <button type="button" onClick={() => openBookList('old')}><span className="round-icon blue"><BookOpen /></span><div><strong>Old Testament</strong><small>Genesis – Malachi</small></div><ChevronRight /></button>
@@ -150,10 +260,11 @@ function App() {
           <div className="book-list">{visibleBooks.map((book) => <BookRow key={book.name} book={book} done={doneByBook.get(book.name) || 0} onSelect={() => openBook(book)} />)}</div>
         </>}
       </section>}
-      {tab === 'vision' && <div className="vision-page"><div className="page-title"><h1>Our Vision</h1><p>We read God’s Word and share the Gospel through our lives.</p></div><Vision /><section className="prayer"><h2>Our Hope and Prayer</h2><ol><li>We desire to love God more and know Him more.</li><li>We desire to love and serve our neighbors in New York and Westchester.</li><li>We look forward to the new revival God will bring to the Korean Church of Westchester.</li></ol></section><button type="button" className="reset" onClick={() => { if (confirm('Reset all of your Bible reading progress?')) setCompleted(new Set()); }}><RotateCcw size={17} /> Reset Reading Progress</button></div>}
+      {tab === 'calendar' && <div className="calendar-page"><div className="page-title"><h1>My Reading History</h1><p>See what you read today and review your progress by date.</p></div><ReadingCalendar completed={completed} readingDates={readingDates} /></div>}
+      {tab === 'vision' && <div className="vision-page"><div className="page-title"><h1>Our Vision</h1><p>We read God’s Word and share the Gospel through our lives.</p></div><Vision /><section className="prayer"><h2>Our Hope and Prayer</h2><ol><li>We desire to love God more and know Him more.</li><li>We desire to love and serve our neighbors in New York and Westchester.</li><li>We look forward to the new revival God will bring to the Korean Church of Westchester.</li></ol></section><button type="button" className="reset" onClick={() => { if (confirm('Reset all of your Bible reading progress?')) { setCompleted(new Set()); setReadingDates({}); } }}><RotateCcw size={17} /> Reset Reading Progress</button></div>}
     </main>
     <nav className="bottom-nav" aria-label="Main navigation">
-      {[["home","Home",Home],["bible","Bible",BookOpen],["vision","Vision",Heart]].map(([key,label,Icon]) => <button type="button" key={key} className={tab === key ? 'active' : ''} onClick={() => { if (key === 'bible') setShowBookDetail(false); setTab(key); window.scrollTo({ top: 0, behavior: 'smooth' }); }}><Icon /><span>{label}</span></button>)}
+      {[["home","Home",Home],["bible","Bible",BookOpen],["calendar","Calendar",CalendarDays],["vision","Vision",Heart]].map(([key,label,Icon]) => <button type="button" key={key} className={tab === key ? 'active' : ''} onClick={() => { if (key === 'bible') setShowBookDetail(false); setTab(key); window.scrollTo({ top: 0, behavior: 'smooth' }); }}><Icon /><span>{label}</span></button>)}
     </nav>
   </div>;
 }
