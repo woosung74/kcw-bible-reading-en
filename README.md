@@ -6,6 +6,8 @@ An installable English Bible-reading tracker for the Korean Church of Westcheste
 
 - All 66 books and 1,189 chapters of the Protestant Bible
 - Chapter-level and book-level completion tracking
+- Today's chapter count and a date-by-date reading calendar
+- Chapter history for each selected calendar date
 - Overall progress dashboard and next unread book shortcut
 - Separate Old and New Testament navigation
 - Progress saved privately in the browser on each device
