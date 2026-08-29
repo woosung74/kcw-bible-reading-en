@@ -1,4 +1,4 @@
-const CACHE = 'kcw-bible-en-v2-calendar';
+const CACHE = 'kcw-bible-en-v3-rounds-daily-word';
 const base = new URL(self.registration.scope).pathname;
 const CORE = [base, `${base}index.html`, `${base}manifest.webmanifest`, `${base}church-logo.jpg`];
 self.addEventListener('install', (event) => event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(CORE))));

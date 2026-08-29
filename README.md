@@ -8,6 +8,9 @@ An installable English Bible-reading tracker for the Korean Church of Westcheste
 - Chapter-level and book-level completion tracking
 - Today's chapter count and a date-by-date reading calendar
 - Chapter history for each selected calendar date
+- Completed-reading milestones such as Round 1, Round 2, and Round 3
+- Date history preserved when starting the next reading round
+- A fresh daily Bible verse selected for each date
 - Overall progress dashboard and next unread book shortcut
 - Separate Old and New Testament navigation
 - Progress saved privately in the browser on each device
