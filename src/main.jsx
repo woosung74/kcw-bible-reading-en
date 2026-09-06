@@ -5,6 +5,7 @@ import { allBooks, TOTAL_CHAPTERS } from './bibleData';
 import './styles.css';
 import Preferences from './Preferences.jsx';
 import ReadingPlan from './ReadingPlan.jsx';
+import ChurchPlan from './ChurchPlan.jsx';
 import Journal, { JournalShortcut, CalendarJournalButton } from './Journal.jsx';
 import { useJournal } from './useJournal.js';
 import { NotebookPen } from 'lucide-react';
@@ -2519,23 +2520,23 @@ function App() {
 
   return <div className="app-shell">
     <Header />
-    <Preferences language="en" keys={BACKUP_KEYS} journalKey={JOURNAL_KEY} journal={journal} allBooks={allBooks} />
     <main>
       {tab === 'home' && <>
-        <section className="welcome"><Sunrise /><div><p>May God</p><h1>Bless you and be with you today!</h1><span>Family Bible Reading 2026–2027</span></div></section>
-        <DailyVerse />
-        <JournalShortcut language="en" onOpen={openJournal} />
-        <ReadingPlan language="en" />
         <section className="dashboard">
           <ProgressRing completed={completed.size} />
           <div className="today-area"><div className="today-count"><small>Read Today</small><strong>{todayCount}<em> chapters</em></strong></div><button type="button" onClick={() => openBook(nextUnread)}><BookOpen /> Continue Reading</button><button type="button" className="calendar-shortcut" onClick={() => { setTab('calendar'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}><CalendarDays /> View Reading Calendar</button><p>Continue your journey through {nextUnread.name}.</p></div>
         </section>
+        <ChurchPlan language="en" onOpen={openBook} />
+        <section className="welcome"><Sunrise /><div><p>May God</p><h1>Bless you and be with you today!</h1><span>Family Bible Reading 2026–2027</span></div></section>
+        <DailyVerse />
+        <JournalShortcut language="en" onOpen={openJournal} />
         <ReadingJourney completedRounds={visibleCompletedRounds} currentRound={currentRound} isComplete={isRoundComplete} onStartNext={startNextRound} />
         <div className="testament-links">
           <button type="button" onClick={() => openBookList('old')}><span className="round-icon blue"><BookOpen /></span><div><strong>Old Testament</strong><small>Genesis – Malachi</small></div><ChevronRight /></button>
           <button type="button" onClick={() => openBookList('new')}><span className="round-icon gold"><BookOpen /></span><div><strong>New Testament</strong><small>Matthew – Revelation</small></div><ChevronRight /></button>
         </div>
         <ChapterGrid book={selectedBook} completed={completed} toggleChapter={toggleChapter} toggleBook={toggleBook} />
+        <ReadingPlan language="en" />
         <Vision />
       </>}
       {tab === 'bible' && <section className="bible-view">
@@ -2552,6 +2553,7 @@ function App() {
       {tab === 'journal' && <Journal language="en" journal={journal} date={journalDate} onDateChange={setJournalDate} />}
       {tab === 'vision' && <div className="vision-page"><div className="page-title"><h1>Our Vision</h1><p>We read God’s Word and share the Gospel through our lives.</p></div><Vision /><section className="prayer"><h2>Our Hope and Prayer</h2><ol><li>We desire to love God more and know Him more.</li><li>We desire to love and serve our neighbors in New York and Westchester.</li><li>We look forward to the new revival God will bring to the Korean Church of Westchester.</li></ol></section><button type="button" className="reset" onClick={() => { if (confirm('Reset all progress, completed rounds, and reading history?')) { setCompleted(new Set()); setReadingDates({}); setReadingHistory([]); setCompletedRounds(0); setRoundAwarded(false); } }}><RotateCcw size={17} /> Reset Reading Progress</button></div>}
     </main>
+    <Preferences language="en" keys={BACKUP_KEYS} journalKey={JOURNAL_KEY} journal={journal} allBooks={allBooks} />
     <nav className="bottom-nav" aria-label="Main navigation">
       {[["home","Home",Home],["bible","Bible",BookOpen],["calendar","Calendar",CalendarDays],["journal","Journal",NotebookPen],["vision","Vision",Heart]].map(([key,label,Icon]) => <button type="button" key={key} className={tab === key ? 'active' : ''} onClick={() => { if (key === 'bible') setShowBookDetail(false); setTab(key); window.scrollTo({ top: 0, behavior: 'smooth' }); }}><Icon /><span>{label}</span></button>)}
     </nav>
