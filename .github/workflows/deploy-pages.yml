@@ -31,6 +31,8 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Test journal and backups
+        run: pnpm test
       - name: Build app
         run: pnpm build
       - name: Configure GitHub Pages

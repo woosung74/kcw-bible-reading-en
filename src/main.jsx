@@ -3,12 +3,18 @@ import { createRoot } from 'react-dom/client';
 import { ArrowLeft, BookOpen, CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, Circle, Heart, Home, RotateCcw, Sparkles, Sunrise, Trophy } from 'lucide-react';
 import { allBooks, TOTAL_CHAPTERS } from './bibleData';
 import './styles.css';
+import Preferences from './Preferences.jsx';
+import Journal, { JournalShortcut, CalendarJournalButton } from './Journal.jsx';
+import { useJournal } from './useJournal.js';
+import { NotebookPen } from 'lucide-react';
 
 const STORAGE_KEY = 'kcw-bible-progress-en-v1';
 const DATES_KEY = 'kcw-bible-reading-dates-en-v1';
 const ROUNDS_KEY = 'kcw-bible-completed-rounds-en-v1';
 const ROUND_AWARDED_KEY = 'kcw-bible-round-awarded-en-v1';
 const HISTORY_KEY = 'kcw-bible-reading-history-en-v1';
+const JOURNAL_KEY = 'kcw-bible-journal-en-v1';
+const BACKUP_KEYS = [STORAGE_KEY, DATES_KEY, ROUNDS_KEY, ROUND_AWARDED_KEY, HISTORY_KEY];
 const BASE_URL = import.meta.env.BASE_URL;
 const DAILY_VERSES = [
   {
@@ -2275,16 +2281,6 @@ function ReadingJourney({ completedRounds, currentRound, isComplete, onStartNext
 }
 
 
-function Preferences() {
- const keys=[STORAGE_KEY,DATES_KEY,ROUNDS_KEY,ROUND_AWARDED_KEY,HISTORY_KEY];
- const [size,setSize]=useState(()=>localStorage.getItem(STORAGE_KEY+'-font')||'normal');
- const [message,setMessage]=useState('');
- useEffect(()=>{document.documentElement.dataset.font=size;localStorage.setItem(STORAGE_KEY+'-font',size);},[size]);
- const backup=()=>{const data={app:'kcw-bible',version:1,language:'en',savedAt:new Date().toISOString(),values:keys.map(key=>localStorage.getItem(key))};const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='kcw-bible-en-'+localDateKey()+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
- const restore=async(event)=>{try{const file=event.target.files[0];if(!file)return;if(file.size>10000000)throw Error();const data=JSON.parse(await file.text());if(data.app!=='kcw-bible'||data.version!==1||data.language!=='en'||!Array.isArray(data.values)||data.values.length!==5)throw Error();const values=data.values.map(v=>v===null?null:JSON.parse(v));const valid=new Set(allBooks.flatMap(b=>Array.from({length:b.chapters},(_,i)=>b.name+'-'+(i+1))));const dates=v=>v&&typeof v==='object'&&!Array.isArray(v)&&Object.entries(v).every(([k,d])=>valid.has(k)&&typeof d==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(d));if(!Array.isArray(values[0])||!values[0].every(k=>valid.has(k))||!dates(values[1])||!Number.isSafeInteger(values[2])||values[2]<0||values[2]>1000||typeof values[3]!=='boolean'||!Array.isArray(values[4])||!values[4].every(e=>e&&valid.has(e.chapter)&&Number.isSafeInteger(e.round)&&e.round>0&&typeof e.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(e.date)))throw Error();if(!confirm('Replace current records with this backup? Save a backup of your current records first.'))return;const before=keys.map(k=>localStorage.getItem(k));try{keys.forEach((k,i)=>localStorage.setItem(k,data.values[i]));}catch(error){keys.forEach((k,i)=>before[i]===null?localStorage.removeItem(k):localStorage.setItem(k,before[i]));throw error;}location.reload();}catch{setMessage('Unable to restore. Choose a valid backup from the same language version.');}event.target.value='';};
- return <details className="preferences"><summary>Text size · Backup</summary><label>Text size<select value={size} onChange={e=>setSize(e.target.value)}><option value="normal">Normal</option><option value="large">Large</option><option value="xlarge">Extra large</option></select></label><button onClick={backup}>Download backup</button><label>Restore backup<input type="file" accept=".json,application/json" onChange={restore}/></label><p>Save progress, completed rounds and date history. Restore in the same language version.</p><p role="status">{message}</p></details>;
-}
-
 function Header() {
   return <header className="site-header">
     <img src={`${BASE_URL}church-logo.jpg`} alt="Korean Church of Westchester" />
@@ -2345,7 +2341,7 @@ function Vision() {
   </section>;
 }
 
-function ReadingCalendar({ readingEntries, onRecord }) {
+function ReadingCalendar({ readingEntries, onRecord, journalEntries, onJournal }) {
   const todayKey = localDateKey();
   const today = new Date();
   const [monthDate, setMonthDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
@@ -2401,10 +2397,11 @@ function ReadingCalendar({ readingEntries, onRecord }) {
         if (!day) return <span className="calendar-empty" key={`empty-${index}`} />;
         const dateKey = localDateKey(new Date(year, month, day));
         const count = readingsByDate[dateKey]?.length || 0;
+        const hasJournal = Boolean(journalEntries[dateKey]);
         const className = ['calendar-day', dateKey === todayKey ? 'today' : '', dateKey === selectedDate ? 'selected' : '', count ? 'has-reading' : ''].filter(Boolean).join(' ');
         const countLabel = `${count} ${count === 1 ? 'chapter' : 'chapters'} read`;
-        return <button type="button" key={dateKey} className={className} onClick={() => setSelectedDate(dateKey)} aria-label={`${formatDate(dateKey)}, ${countLabel}`}>
-          <span>{day}</span>{count > 0 && <b>{count} ch.</b>}
+        return <button type="button" key={dateKey} className={className} onClick={() => setSelectedDate(dateKey)} aria-label={`${formatDate(dateKey)}, ${countLabel}${hasJournal ? ", notes or gratitude recorded" : ""}`}>
+          <span>{day}</span>{hasJournal && <span className="calendar-journal-marker" aria-hidden="true">✎</span>}{count > 0 && <b>{count} ch.</b>}
         </button>;
       })}
     </div>
@@ -2415,12 +2412,16 @@ function ReadingCalendar({ readingEntries, onRecord }) {
         return <li key={`${round}-${chapter}`}><CheckCircle2 /> <b>Round {round}</b> · {chapter.slice(0, splitAt)} {chapter.slice(splitAt + 1)}</li>;
       })}</ul> : <p>No Bible reading is recorded for this date.</p>}
     </div>
+    <CalendarJournalButton language="en" date={selectedDate} onOpen={onJournal} />
     <form className="record-editor" onSubmit={(event) => { event.preventDefault(); onRecord(allBooks[editBook].name + '-' + editChapter, selectedDate); setRecordMessage('Saved to the selected date.'); }}><h3>Record reading on this date</h3><p>Add or move a chapter in your current reading round.</p><label>Book<select value={editBook} onChange={e=>{setEditBook(Number(e.target.value));setEditChapter(1);}}>{allBooks.map((b,i)=><option key={b.name} value={i}>{b.name}</option>)}</select></label><label>Chapter<select value={editChapter} onChange={e=>setEditChapter(Number(e.target.value))}>{Array.from({length:allBooks[editBook].chapters},(_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}</select></label><button disabled={selectedDate>todayKey}>Save to this date</button><p role="status">{recordMessage}</p></form>
     <p className="calendar-note">Date-by-date records from completed rounds stay in your history. Existing progress is preserved; older chapters without dates cannot appear on the calendar.</p>
   </section>;
 }
 
 function App() {
+  const journal = useJournal(JOURNAL_KEY);
+  const [journalDate, setJournalDate] = useState(localDateKey);
+  const openJournal = date => { setJournalDate(date); setTab('journal'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const [completed, setCompleted] = useState(readSaved);
   const [readingDates, setReadingDates] = useState(readSavedDates);
   const [completedRounds, setCompletedRounds] = useState(() => readStoredNumber(ROUNDS_KEY));
@@ -2517,11 +2518,12 @@ function App() {
 
   return <div className="app-shell">
     <Header />
-    <Preferences />
+    <Preferences language="en" keys={BACKUP_KEYS} journalKey={JOURNAL_KEY} journal={journal} allBooks={allBooks} />
     <main>
       {tab === 'home' && <>
         <section className="welcome"><Sunrise /><div><p>May God</p><h1>Bless you and be with you today!</h1><span>Family Bible Reading 2026–2027</span></div></section>
         <DailyVerse />
+        <JournalShortcut language="en" onOpen={openJournal} />
         <section className="dashboard">
           <ProgressRing completed={completed.size} />
           <div className="today-area"><div className="today-count"><small>Read Today</small><strong>{todayCount}<em> chapters</em></strong></div><button type="button" onClick={() => openBook(nextUnread)}><BookOpen /> Continue Reading</button><button type="button" className="calendar-shortcut" onClick={() => { setTab('calendar'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}><CalendarDays /> View Reading Calendar</button><p>Continue your journey through {nextUnread.name}.</p></div>
@@ -2544,11 +2546,12 @@ function App() {
           <div className="book-list">{visibleBooks.map((book) => <BookRow key={book.name} book={book} done={doneByBook.get(book.name) || 0} onSelect={() => openBook(book)} />)}</div>
         </>}
       </section>}
-      {tab === 'calendar' && <div className="calendar-page"><div className="page-title"><h1>My Reading History</h1><p>See what you read today and review your progress by date.</p></div><ReadingCalendar readingEntries={readingEntries} onRecord={(chapter,date)=>{setCompleted(current=>new Set([...current,chapter]));setReadingDates(current=>({...current,[chapter]:date}));}} /></div>}
+      {tab === 'calendar' && <div className="calendar-page"><div className="page-title"><h1>My Reading History</h1><p>See what you read today and review your progress by date.</p></div><ReadingCalendar journalEntries={journal.entries} onJournal={openJournal} readingEntries={readingEntries} onRecord={(chapter,date)=>{setCompleted(current=>new Set([...current,chapter]));setReadingDates(current=>({...current,[chapter]:date}));}} /></div>}
+      {tab === 'journal' && <Journal language="en" journal={journal} date={journalDate} onDateChange={setJournalDate} />}
       {tab === 'vision' && <div className="vision-page"><div className="page-title"><h1>Our Vision</h1><p>We read God’s Word and share the Gospel through our lives.</p></div><Vision /><section className="prayer"><h2>Our Hope and Prayer</h2><ol><li>We desire to love God more and know Him more.</li><li>We desire to love and serve our neighbors in New York and Westchester.</li><li>We look forward to the new revival God will bring to the Korean Church of Westchester.</li></ol></section><button type="button" className="reset" onClick={() => { if (confirm('Reset all progress, completed rounds, and reading history?')) { setCompleted(new Set()); setReadingDates({}); setReadingHistory([]); setCompletedRounds(0); setRoundAwarded(false); } }}><RotateCcw size={17} /> Reset Reading Progress</button></div>}
     </main>
     <nav className="bottom-nav" aria-label="Main navigation">
-      {[["home","Home",Home],["bible","Bible",BookOpen],["calendar","Calendar",CalendarDays],["vision","Vision",Heart]].map(([key,label,Icon]) => <button type="button" key={key} className={tab === key ? 'active' : ''} onClick={() => { if (key === 'bible') setShowBookDetail(false); setTab(key); window.scrollTo({ top: 0, behavior: 'smooth' }); }}><Icon /><span>{label}</span></button>)}
+      {[["home","Home",Home],["bible","Bible",BookOpen],["calendar","Calendar",CalendarDays],["journal","Journal",NotebookPen],["vision","Vision",Heart]].map(([key,label,Icon]) => <button type="button" key={key} className={tab === key ? 'active' : ''} onClick={() => { if (key === 'bible') setShowBookDetail(false); setTab(key); window.scrollTo({ top: 0, behavior: 'smooth' }); }}><Icon /><span>{label}</span></button>)}
     </nav>
   </div>;
 }
