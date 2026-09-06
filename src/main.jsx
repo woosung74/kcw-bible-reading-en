@@ -4,6 +4,7 @@ import { ArrowLeft, BookOpen, CalendarDays, Check, CheckCircle2, ChevronLeft, Ch
 import { allBooks, TOTAL_CHAPTERS } from './bibleData';
 import './styles.css';
 import Preferences from './Preferences.jsx';
+import ReadingPlan from './ReadingPlan.jsx';
 import Journal, { JournalShortcut, CalendarJournalButton } from './Journal.jsx';
 import { useJournal } from './useJournal.js';
 import { NotebookPen } from 'lucide-react';
@@ -2524,6 +2525,7 @@ function App() {
         <section className="welcome"><Sunrise /><div><p>May God</p><h1>Bless you and be with you today!</h1><span>Family Bible Reading 2026–2027</span></div></section>
         <DailyVerse />
         <JournalShortcut language="en" onOpen={openJournal} />
+        <ReadingPlan language="en" />
         <section className="dashboard">
           <ProgressRing completed={completed.size} />
           <div className="today-area"><div className="today-count"><small>Read Today</small><strong>{todayCount}<em> chapters</em></strong></div><button type="button" onClick={() => openBook(nextUnread)}><BookOpen /> Continue Reading</button><button type="button" className="calendar-shortcut" onClick={() => { setTab('calendar'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}><CalendarDays /> View Reading Calendar</button><p>Continue your journey through {nextUnread.name}.</p></div>
